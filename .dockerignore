@@ -1,0 +1,12 @@
+.venv
+__pycache__
+*.pyc
+.git
+.gitignore
+Dockerfile
+docker-compose.yml
+.env
+*.ipynb
+node_modules
+data/chroma
+**/.cache
