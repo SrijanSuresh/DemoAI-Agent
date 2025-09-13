@@ -9,7 +9,6 @@ services:
     volumes:
       - ./data:/app/data
       - ./hf_cache:/root/.cache/huggingface   # <-- host-mounted cache
-    # lets the container reach your host's Ollama at host.docker.internal
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
