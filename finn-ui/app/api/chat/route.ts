@@ -17,10 +17,8 @@ export async function POST(req: Request) {
       status: r.status,
       headers: { "Content-Type": "application/json" },
     });
-  } catch (e: any) {
-    return NextResponse.json(
-      { error: e?.message ?? "proxy_error" },
-      { status: 500 }
-    );
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
