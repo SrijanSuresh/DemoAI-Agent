@@ -1,8 +1,8 @@
-"use client"
+"use client";
 
-import type React from "react"
-import { useState } from "react"
-import { Activity, Dumbbell, Heart, Zap } from "lucide-react"
+import type React from "react";
+import { useState } from "react";
+import { Activity, Dumbbell, Heart, Zap } from "lucide-react";
 
 function isErrorResp(data: unknown): data is { error: string } {
   return (
@@ -10,13 +10,19 @@ function isErrorResp(data: unknown): data is { error: string } {
     data !== null &&
     "error" in data &&
     typeof (data as { error?: unknown }).error === "string"
-  )
+  );
 }
 
-type Citation = { title: string; source: string; chunk_id: string }
-type Safety = { crisis: boolean; out_of_scope: boolean }
-type BotResp = { reply: string; citations: Citation[]; safety: Safety }
-type MessageType = { role: "user" | "assistant"; text: string; citations?: Citation[]; safety?: Safety }
+// Match backend: citations look like { title, id, score? }
+type Citation = { title: string; id: string; score?: number };
+type Safety = { crisis?: boolean; out_of_scope?: boolean };
+type BotResp = { reply: string; citations: Citation[]; safety: Safety };
+type MessageType = {
+  role: "user" | "assistant";
+  text: string;
+  citations?: Citation[];
+  safety?: Safety;
+};
 
 const fitnessPrompts = [
   "How can I build muscle effectively?",
@@ -25,53 +31,44 @@ const fitnessPrompts = [
   "What should I eat before a workout?",
   "How can I stay motivated to exercise?",
   "What's a good beginner workout routine?",
-]
+];
 
 export default function Page() {
-  const [input, setInput] = useState<string>("")
-  const [loading, setLoading] = useState<boolean>(false)
-  const [messages, setMessages] = useState<MessageType[]>([])
+  const [input, setInput] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
+  const [messages, setMessages] = useState<MessageType[]>([]);
 
-  async function send() {
-    const q = input.trim()
-    if (!q || loading) return
-    setInput("")
-    setMessages((m: MessageType[]) => [...m, { role: "user", text: q }])
-    setLoading(true)
+  async function send(messageOverride?: string) {
+    const q = (messageOverride ?? input).trim();
+    if (!q || loading) return;
+    setInput("");
+    setMessages((m) => [...m, { role: "user", text: q }]);
+    setLoading(true);
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: q }),
-      })
-      const data: BotResp | { error?: string } = await res.json()
+      });
+      const data: BotResp | { error?: string } = await res.json();
       if (!res.ok || isErrorResp(data)) {
-        throw new Error(isErrorResp(data) ? data.error : "chat_failed")
+        throw new Error(isErrorResp(data) ? data.error : "chat_failed");
       }
-      const { reply, citations, safety } = data as BotResp
-      setMessages((m: MessageType[]) => [...m, { role: "assistant", text: reply, citations, safety }])
+      const { reply, citations, safety } = data as BotResp;
+      setMessages((m) => [...m, { role: "assistant", text: reply, citations, safety }]);
     } catch (e) {
-      let errorMsg = "failed"
-      if (e && typeof e === "object" && "message" in e) {
-        errorMsg = (e as Error).message
-      } else if (typeof e === "string") {
-        errorMsg = e
-      }
-      setMessages((m: MessageType[]) => [...m, { role: "assistant", text: `Error: ${errorMsg}` }])
+      const errorMsg = e instanceof Error ? e.message : String(e);
+      setMessages((m) => [...m, { role: "assistant", text: `Error: ${errorMsg}` }]);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
   function onKey(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault()
-      send()
+      e.preventDefault();
+      send();
     }
-  }
-
-  function handlePromptClick(prompt: string) {
-    setInput(prompt)
   }
 
   return (
@@ -80,7 +77,7 @@ export default function Page() {
         className="px-6 py-6 text-white shadow-lg"
         style={{
           background: "linear-gradient(to right, #ea580c, #f97316)",
-          backgroundColor: "#ea580c", // fallback
+          backgroundColor: "#ea580c",
         }}
       >
         <div className="max-w-4xl mx-auto">
@@ -91,7 +88,7 @@ export default function Page() {
             <h1 className="text-2xl font-bold text-white">Finn — Your AI Fitness Coach</h1>
           </div>
           <p className="text-white/90 text-sm">
-            Get personalized fitness advice with evidence-based answers and citations. No medical diagnosis.
+            {"Get personalized fitness advice with evidence-based answers and citations. No medical diagnosis."}
           </p>
         </div>
       </header>
@@ -105,8 +102,7 @@ export default function Page() {
               </div>
               <h2 className="text-2xl font-bold text-foreground mb-2">Ready to transform your fitness?</h2>
               <p className="text-muted-foreground max-w-md mx-auto">
-                Ask me anything about workouts, nutrition, recovery, or wellness. I'll provide evidence-based answers to
-                help you reach your goals.
+                {"Ask me anything about workouts, nutrition, recovery, or wellness. I'll provide evidence-based answers to help you reach your goals."}
               </p>
             </div>
 
@@ -134,7 +130,7 @@ export default function Page() {
                 {fitnessPrompts.map((prompt, idx) => (
                   <button
                     key={idx}
-                    onClick={() => handlePromptClick(prompt)}
+                    onClick={() => send(prompt)}
                     className="text-left p-4 bg-card hover:bg-accent/10 border border-border rounded-xl transition-colors group"
                   >
                     <span className="text-card-foreground group-hover:text-accent transition-colors">{prompt}</span>
@@ -145,7 +141,7 @@ export default function Page() {
           </div>
         )}
 
-        {messages.map((m: MessageType, i: number) => (
+        {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
             <div className={`max-w-3xl ${m.role === "user" ? "ml-auto" : ""}`}>
               <div
@@ -154,21 +150,26 @@ export default function Page() {
                 }`}
               >
                 <div className="whitespace-pre-wrap text-balance">{m.text}</div>
+
                 {m.role === "assistant" && m.citations && m.citations.length > 0 && (
                   <div className="mt-4 pt-3 border-t border-border/50">
                     <div className="text-xs font-medium text-muted-foreground mb-2">Sources:</div>
                     <ul className="space-y-1">
-                      {m.citations.map((c: Citation, idx: number) => (
-                        <li key={idx} className="text-xs text-muted-foreground flex items-start gap-2">
-                          <span className="w-1 h-1 bg-primary rounded-full mt-2 flex-shrink-0"></span>
+                      {m.citations.map((c, idx2) => (
+                        <li key={idx2} className="text-xs text-muted-foreground flex items-start gap-2">
+                          <span className="w-1 h-1 bg-primary rounded-full mt-2 flex-shrink-0" />
                           <span>
-                            {c.title} <span className="text-muted-foreground/70">({c.chunk_id})</span>
+                            {c.title} <span className="text-muted-foreground/70">({c.id})</span>
+                            {typeof c.score === "number" && (
+                              <span className="text-muted-foreground/60"> — {c.score.toFixed(2)}</span>
+                            )}
                           </span>
                         </li>
                       ))}
                     </ul>
                   </div>
                 )}
+
                 {m.role === "assistant" && m.safety && (
                   <div className="mt-3 flex gap-2">
                     {m.safety.crisis && (
@@ -193,15 +194,9 @@ export default function Page() {
             <div className="bg-card border border-border rounded-2xl px-6 py-4 mr-12">
               <div className="flex items-center gap-3">
                 <div className="flex gap-1">
-                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce"></div>
-                  <div
-                    className="w-2 h-2 bg-primary rounded-full animate-bounce"
-                    style={{ animationDelay: "0.1s" }}
-                  ></div>
-                  <div
-                    className="w-2 h-2 bg-primary rounded-full animate-bounce"
-                    style={{ animationDelay: "0.2s" }}
-                  ></div>
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" />
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: "0.1s" }} />
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: "0.2s" }} />
                 </div>
                 <span className="text-muted-foreground text-sm">Finn is thinking...</span>
               </div>
@@ -220,13 +215,13 @@ export default function Page() {
             className="flex-1 border border-border rounded-xl px-4 py-3 bg-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
           />
           <button
-            onClick={send}
+            onClick={() => send()}
             disabled={loading || !input.trim()}
             className="px-6 py-3 rounded-xl bg-primary text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors font-medium flex items-center gap-2"
           >
             {loading ? (
               <>
-                <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin"></div>
+                <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
                 Thinking...
               </>
             ) : (
@@ -239,5 +234,5 @@ export default function Page() {
         </div>
       </footer>
     </main>
-  )
+  );
 }
