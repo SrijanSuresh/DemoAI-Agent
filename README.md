@@ -1,4 +1,6 @@
-# Finn — AI Fitness Coach
+# Finn — AI Fitness Coach 
+- https://demo-ai-agent.vercel.app
+<img width="1371" height="1037" alt="image" src="https://github.com/user-attachments/assets/58cfc742-34d0-4122-b875-0f06934c5b10" />
 
 Simple full-stack project where a **Next.js frontend** talks to a **FastAPI backend**.  
 The backend uses embeddings + a small markdown knowledge base to answer basic health and wellness questions.  
