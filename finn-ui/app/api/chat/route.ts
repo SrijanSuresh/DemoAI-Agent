@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
-const TARGET = process.env.BACKEND_URL ?? "http://localhost:8000";
+const TARGET =
+  process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
 
 export async function POST(req: Request) {
   try {
@@ -10,18 +11,16 @@ export async function POST(req: Request) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: body.message }),
     });
+
     const text = await r.text();
     return new NextResponse(text, {
       status: r.status,
       headers: { "Content-Type": "application/json" },
     });
-  } catch (e) {
-    let errorMsg = "proxy_error";
-    if (e && typeof e === "object" && "message" in e) {
-      errorMsg = (e as Error).message;
-    } else if (typeof e === "string") {
-      errorMsg = e;
-    }
-    return NextResponse.json({ error: errorMsg }, { status: 500 });
+  } catch (e: any) {
+    return NextResponse.json(
+      { error: e?.message ?? "proxy_error" },
+      { status: 500 }
+    );
   }
 }
