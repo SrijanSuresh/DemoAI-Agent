@@ -22,7 +22,7 @@ If a question is out of scope, the bot politely declines.
 
 ## Running Locally
 
-### Backend
+### Backend + Frontend
 ```bash
 # inside repo root
 docker compose up --build
@@ -36,7 +36,6 @@ npm install
 npm run dev
 # open http://localhost:3000
 ```
-Deployment
 
 ### Frontend → Vercel (root set to finn-ui)
 
