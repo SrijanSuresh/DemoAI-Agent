@@ -1,9 +1,14 @@
+
 services:
-  finn-mini:
+  finn:
     build: .
+    image: finn-fastembed:latest
     ports: ["8000:8000"]
     environment:
       - KB_DIR=/app/data/kb
+      - UVICORN_WORKERS=1
+      - OMP_NUM_THREADS=1
+      - OPENBLAS_NUM_THREADS=1
     volumes:
       - ./data:/app/data:ro
       - ./hf_cache:/root/.cache/huggingface
