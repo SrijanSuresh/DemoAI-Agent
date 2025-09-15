@@ -1,54 +1,54 @@
-# app.py
-import os, re, glob, numpy as np
+# app.py - Finn v0 backend (FastEmbed + FastAPI)
+import os
+import numpy as np
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from sentence_transformers import SentenceTransformer
+from fastembed import TextEmbedding
 
-KB_DIR = os.getenv("KB_DIR", "data/kb")
-app = FastAPI(title="Finn-mini")
-CRISIS = re.compile(r"(suicide|self[-\s]?harm|kill myself|overdose)", re.I)
-OOS    = re.compile(r"\b(dosage|dose|mg|milligram|diagnose|prescribe|medication)\b", re.I)
-BULLET = re.compile(r"^\s*[-*•]\s+(.+)$")
+# --- Config ---
+KB = [
+    {"id": "sleep#0", "title": "Sleep", "text": "Keep a consistent sleep/wake schedule. Limit caffeine. Dark, cool, quiet room. No screens 1h before bed."},
+    {"id": "stress#0", "title": "Stress", "text": "Practice 4-4-4 breathing. Take short walks. Journal 5 minutes. Micro-breaks each hour."},
+    {"id": "hydration#0", "title": "Hydration", "text": "Sip water regularly. Eat water-rich foods like fruits/veg. Limit sugary drinks."}
+]
 
-def load_kb():
-    items=[]
-    for p in glob.glob(f"{KB_DIR}/*.md"):
-        title=os.path.splitext(os.path.basename(p))[0].title()
-        txt=open(p,encoding="utf-8").read()
-        for i,chunk in enumerate([c.strip() for c in txt.split("\n\n") if c.strip()]):
-            items.append({"id":f"{os.path.basename(p)}#{i}","title":title,"text":chunk})
-    if not items: raise RuntimeError(f"No .md in {KB_DIR}")
-    return items
-KB=load_kb()
-EMB=SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
-M = EMB.encode([c["text"] for c in KB], normalize_embeddings=True)
+EMB = TextEmbedding("BAAI/bge-small-en-v1.5")  # tiny embedder
+KB_VECS = np.array(list(EMB.embed([c["text"] for c in KB])))
+KB_VECS /= np.linalg.norm(KB_VECS, axis=1, keepdims=True) + 1e-9
 
-class ChatReq(BaseModel): message:str
-def bullets(t):
-    b=[m.group(1).strip() for m in map(BULLET.match,t.splitlines()) if m]; 
-    return b if b else [s.strip() for s in re.split(r"(?<=[.!?])\s+", t) if s.strip()]
+# --- FastAPI ---
+app = FastAPI(title="Finn v0")
 
-def retrieve(q,k=4):
-    qv = EMB.encode([q], normalize_embeddings=True)[0]
-    sims = M @ qv; idx = sims.argsort()[::-1][:k]
-    return [{"score":float(sims[i]), **KB[i]} for i in idx if sims[i]>0.2]
+class ChatReq(BaseModel):
+    message: str
 
 @app.get("/health")
-def health(): return {"status":"ok","kb_chunks":len(KB),"emb_model":"all-MiniLM-L6-v2"}
+def health():
+    return {"status": "ok", "kb_chunks": len(KB)}
 
 @app.post("/chat")
-def chat(req:ChatReq):
-    q=(req.message or "").strip()
-    if not q: raise HTTPException(400,"Empty message")
-    if CRISIS.search(q): return {"reply":"If you're in immediate danger call local emergency services. In the U.S., call or text 988.","citations":[],"safety":{"crisis":True}}
-    if OOS.search(q):    return {"reply":"I can share general wellness tips, but I can’t diagnose or give dosing advice. Please consult a clinician.","citations":[],"safety":{"out_of_scope":True}}
-    hits=retrieve(q); 
-    if not hits: return {"reply":"I may not have notes on that yet. Try sleep, stress, or hydration topics.","citations":[],"safety":{}}
-    tips=[]; cits=[]
-    for h in hits:
-        for t in bullets(h["text"]):
-            if len(tips)<5 and t not in tips: tips.append(t)
-        cits.append({"title":h["title"],"chunk_id":h["id"]})
-        if len(tips)>=5: break
-    reply="Here are a few things to try:\n\n"+"\n".join(f"{i}. {t}" for i,t in enumerate(tips,1))
-    return {"reply":reply,"citations":cits,"safety":{}}
+def chat(req: ChatReq):
+    q = req.message.strip()
+    if not q:
+        raise HTTPException(400, "Empty message")
+
+    # Safety: crisis / out-of-scope
+    lq = q.lower()
+    if any(x in lq for x in ["suicide","self-harm","kill myself","overdose"]):
+        return {"reply":"If in danger, call emergency services. In the U.S., dial 988.","citations":[],"safety":{"crisis":True}}
+    if any(x in lq for x in ["dosage","mg","diagnose","prescribe"]):
+        return {"reply":"I can share general wellness tips, but not medical dosing or diagnoses.","citations":[],"safety":{"out_of_scope":True}}
+
+    # Retrieval
+    qv = np.array(list(EMB.embed([q])))[0]
+    qv /= np.linalg.norm(qv) + 1e-9
+    sims = KB_VECS @ qv
+    best = KB[int(sims.argmax())]
+
+    return {
+        "reply": best["text"],
+        "citations": [{"title": best["title"], "id": best["id"], "score": float(sims.max())}],
+        "safety": {}
+    }
+
+# Run local: uvicorn app:app --host 0.0.0.0 --port 8000
